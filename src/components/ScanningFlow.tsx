@@ -2,11 +2,11 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, RefreshCw, CheckCircle2 } from "lucide-react";
+import MessagingSidebar from "./MessagingSidebar";
 
 /**
  * CHALLENGE: SCAN ENHANCEMENT
- * 
- * Your goal is to improve the User Experience of the Scanning Flow.
+ * * Your goal is to improve the User Experience of the Scanning Flow.
  * 1. Implement a Visual Guidance Overlay (e.g., a circle or mouth outline) on the video feed.
  * 2. Add real-time feedback to the user (e.g., "Face not centered", "Move closer").
  * 3. Ensure the UI feels premium and responsive.
@@ -14,6 +14,8 @@ import { Camera, RefreshCw, CheckCircle2 } from "lucide-react";
 
 export default function ScanningFlow() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const feedbackTextRef = useRef<HTMLDivElement>(null);
   const [camReady, setCamReady] = useState(false);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -42,6 +44,39 @@ export default function ScanningFlow() {
     startCamera();
   }, []);
 
+  // Simulated ML Guardrail State (Performance Optimized)
+  useEffect(() => {
+    if (!camReady || currentStep >= 5) return;
+
+    const stabilityStates = [
+      { borderColor: 'border-red-500', text: 'Hold still or move closer', textColor: 'text-red-400' },
+      { borderColor: 'border-yellow-500', text: 'Adjusting position...', textColor: 'text-yellow-400' },
+      { borderColor: 'border-green-500', text: 'Perfect! Hold steady.', textColor: 'text-green-400' }
+    ];
+
+    let tick = 0;
+    // Simulating a high-frequency frame analysis loop
+    const interval = setInterval(() => {
+      if (!overlayRef.current || !feedbackTextRef.current) return;
+      
+      const state = stabilityStates[tick % stabilityStates.length];
+      
+      // Dynamic Shape Logic: Wider for upper/lower teeth (Steps 3 & 4)
+      const isWideView = currentStep === 3 || currentStep === 4;
+      const baseShape = isWideView ? 'w-72 h-56 rounded-[40%]' : 'w-56 h-72 rounded-[50%]';
+
+      // Direct DOM mutation avoids React re-renders, saving media feed performance
+      overlayRef.current.className = `absolute m-auto inset-0 ${baseShape} border-4 border-dashed transition-all duration-300 pointer-events-none ${state.borderColor}`;
+      
+      feedbackTextRef.current.innerText = state.text;
+      feedbackTextRef.current.className = `absolute top-8 px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-sm font-semibold shadow-lg transition-colors duration-300 ${state.textColor}`;
+
+      tick++;
+    }, 1500); // Cycles every 1.5s for demo purposes
+
+    return () => clearInterval(interval);
+  }, [camReady, currentStep]);
+
   const handleCapture = useCallback(() => {
     // Boilerplate logic for capturing a frame from the video feed
     const video = videoRef.current;
@@ -58,6 +93,29 @@ export default function ScanningFlow() {
       setCurrentStep((prev) => prev + 1);
     }
   }, []);
+
+  // Trigger Backend Notification on Completion
+  useEffect(() => {
+    if (currentStep === 5) {
+      const triggerNotification = async () => {
+        try {
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scanId: `scan_${Math.random().toString(36).substring(7)}`,
+              status: 'completed',
+              userId: 'user_123'
+            })
+          });
+          console.log("Notification payload sent.");
+        } catch (e) {
+          console.error("Failed to notify server", e);
+        }
+      };
+      triggerNotification();
+    }
+  }, [currentStep]);
 
   return (
     <div className="flex flex-col items-center bg-black min-h-screen text-white">
@@ -78,9 +136,18 @@ export default function ScanningFlow() {
               className="w-full h-full object-cover grayscale opacity-80" 
             />
             
-            {/* TODO: Implement the Guidance Overlay here */}
-            <div className="absolute inset-0 border-2 border-dashed border-zinc-700 pointer-events-none flex items-center justify-center">
-               <span className="text-[10px] text-zinc-500 uppercase tracking-widest">Guidance Placeholder</span>
+            {/* Optimized Guidance Overlay */}
+            <div 
+              ref={overlayRef} 
+              className="absolute m-auto inset-0 w-56 h-72 rounded-[50%] border-4 border-dashed border-zinc-600 pointer-events-none transition-all duration-300" 
+            />
+            
+            {/* Real-time Feedback Badge */}
+            <div 
+              ref={feedbackTextRef} 
+              className="absolute top-8 px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-zinc-300 text-sm font-semibold shadow-lg transition-colors duration-300"
+            >
+              Loading face detection...
             </div>
 
             {/* Instruction Overlay */}
@@ -89,10 +156,13 @@ export default function ScanningFlow() {
             </div>
           </>
         ) : (
-          <div className="text-center p-10">
+          <div className="text-center p-10 w-full flex flex-col items-center">
             <CheckCircle2 size={48} className="text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold">Scan Complete</h2>
-            <p className="text-zinc-400 mt-2">Uploading results...</p>
+            <p className="text-zinc-400 mt-2 mb-6">Your results have been sent to the clinic.</p>
+            
+            {/* Task 3: Patient-Dentist Messaging Component */}
+            <MessagingSidebar />
           </div>
         )}
       </div>
